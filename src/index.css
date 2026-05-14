@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+  }
+}
+
+@layer utilities {
+  .sticker-card {
+    @apply border border-gray-200 rounded-lg p-2 cursor-pointer select-none transition-all duration-100;
+    min-height: 56px;
+    display: flex;
+    flex-direction: column;
+  }
+  .sticker-card:hover {
+    @apply border-gray-400 bg-gray-50;
+  }
+  .sticker-card.collected {
+    @apply bg-green-50 border-green-400;
+  }
+  .sticker-card.foil:not(.collected) {
+    @apply bg-amber-50 border-amber-400;
+  }
+}
+
+/* Sticker grid */
+.sticker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 4px;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 2px;
+}
