@@ -3,44 +3,169 @@
 @tailwind utilities;
 
 @layer base {
-  body {
-    @apply bg-gray-50 text-gray-900 antialiased;
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
+
+  body {
+    @apply bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-50;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+
+  * {
+    @apply border-slate-200 dark:border-slate-700;
+  }
+
+  ::selection {
+    @apply bg-brand-200 dark:bg-brand-800;
+  }
+
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 dark:bg-slate-600 rounded-full;
+  }
+}
+
+@layer components {
+  /* Sticker grid */
+  .sticker-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+    gap: 5px;
+  }
+
+  /* Card base */
+  .card {
+    @apply bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-card;
+  }
+
+  /* Button variants */
+  .btn-primary {
+    @apply bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white font-semibold rounded-xl px-4 py-2.5 text-sm transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900;
+  }
+
+  .btn-secondary {
+    @apply bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium rounded-xl px-4 py-2.5 text-sm border border-slate-200 dark:border-slate-600 transition-all duration-150 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900;
+  }
+
+  .btn-ghost {
+    @apply hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium rounded-lg px-3 py-2 text-sm transition-all duration-150 focus:outline-none;
+  }
+
+  .btn-danger {
+    @apply bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl px-4 py-2.5 text-sm transition-all duration-150 disabled:opacity-50 focus:outline-none;
+  }
+
+  /* Input */
+  .input {
+    @apply w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 dark:focus:border-brand-400 transition-colors duration-150;
+  }
+
+  /* Label */
+  .label {
+    @apply block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5;
+  }
+
+  /* Badge */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-brand {
+    @apply badge bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-300;
+  }
+
+  .badge-green {
+    @apply badge bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300;
+  }
+
+  .badge-amber {
+    @apply badge bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300;
+  }
+
+  .badge-slate {
+    @apply badge bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300;
+  }
+
+  /* Sticker card states */
+  .sticker-card {
+    @apply bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 flex flex-col select-none transition-all duration-100 active:scale-95;
+    min-height: 60px;
+  }
+
+  .sticker-card:hover {
+    @apply border-slate-300 dark:border-slate-500 shadow-card;
+  }
+
+  .sticker-card.collected {
+    @apply bg-brand-50 dark:bg-brand-900 border-brand-300 dark:border-brand-700;
+  }
+
+  .sticker-card.foil:not(.collected) {
+    @apply bg-amber-50 dark:bg-amber-900 border-amber-300 dark:border-amber-700;
+  }
+
+  /* Section header */
+  .section-header {
+    @apply flex items-center gap-2 px-3 py-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors duration-150 select-none;
+  }
+
+  /* Nav link */
+  .nav-link {
+    @apply px-3 py-2 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-150;
+  }
+
+  .nav-link.active {
+    @apply text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900;
+  }
+
+  /* Page header */
+  .page-header {
+    @apply pt-8 pb-6;
+  }
+
+  .page-title {
+    @apply text-2xl font-bold text-slate-900 dark:text-white;
+  }
+
+  .page-subtitle {
+    @apply text-sm text-slate-500 dark:text-slate-400 mt-1;
+  }
+
+  /* Divider */
+  .divider {
+    @apply border-t border-slate-100 dark:border-slate-800;
+  }
+
+  /* Avatar */
+  .avatar {
+    @apply rounded-full flex items-center justify-center font-bold text-white select-none flex-shrink-0;
+  }
+
+  /* Progress bar */
+  .progress-track {
+    @apply bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden;
+  }
+
+  .progress-fill {
+    @apply bg-brand-500 rounded-full transition-all duration-500 ease-out;
+  }
+
+  /* Medal colors */
+  .medal-1 { @apply text-amber-400; }
+  .medal-2 { @apply text-slate-400; }
+  .medal-3 { @apply text-amber-600; }
 }
 
 @layer utilities {
-  .sticker-card {
-    @apply border border-gray-200 rounded-lg p-2 cursor-pointer select-none transition-all duration-100;
-    min-height: 56px;
-    display: flex;
-    flex-direction: column;
+  .text-balance {
+    text-wrap: balance;
   }
-  .sticker-card:hover {
-    @apply border-gray-400 bg-gray-50;
-  }
-  .sticker-card.collected {
-    @apply bg-green-50 border-green-400;
-  }
-  .sticker-card.foil:not(.collected) {
-    @apply bg-amber-50 border-amber-400;
-  }
-}
-
-/* Sticker grid */
-.sticker-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
-  gap: 4px;
-}
-
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 4px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 2px;
 }

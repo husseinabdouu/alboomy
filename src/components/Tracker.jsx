@@ -1,24 +1,21 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { TEAMS, SPECIAL_SECTIONS, ALL_STICKERS, TOTAL_STICKERS } from '../lib/stickers'
+import { Avatar, ProgressBar, StatCard, Toast, EmptyState, PageLoader } from './ui'
 
-// ── Individual sticker card ───────────────────────────────────────
+// ── Sticker card ──────────────────────────────────────────────────
 function StickerCard({ sticker, collected, onToggle, editable }) {
   const got = collected.has(sticker.id)
   const isNew = sticker.foil && !got
-
   return (
     <div
       onClick={() => editable && onToggle(sticker.id)}
-      className={`border rounded-lg p-1.5 flex flex-col select-none transition-all duration-100 ${
-        editable ? 'cursor-pointer' : 'cursor-default'
-      } ${got ? 'bg-green-50 border-green-400' : isNew ? 'bg-amber-50 border-amber-300' : 'bg-white border-gray-200 hover:border-gray-300'}`}
-      style={{ minHeight: 54 }}
+      className={`sticker-card ${got ? 'collected' : ''} ${isNew ? 'foil' : ''} ${editable ? 'cursor-pointer' : 'cursor-default'}`}
     >
-      <div className={`text-[9px] font-semibold mb-1 ${got ? 'text-green-600' : isNew ? 'text-amber-600' : 'text-gray-400'}`}>
+      <div className={`text-[9px] font-semibold mb-1 leading-none ${got ? 'text-brand-500 dark:text-brand-400' : isNew ? 'text-amber-500' : 'text-slate-400 dark:text-slate-500'}`}>
         {sticker.id}{got ? ' ✓' : isNew ? ' ★' : ''}
       </div>
-      <div className="text-[10.5px] leading-tight text-gray-800 flex-1 overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+      <div className="text-[10.5px] leading-tight text-slate-700 dark:text-slate-300 flex-1 overflow-hidden line-clamp-3">
         {sticker.label}
       </div>
     </div>
@@ -30,16 +27,18 @@ function StickerSection({ title, stickers, collected, onToggle, editable, defaul
   const [open, setOpen] = useState(defaultOpen)
   const got = stickers.filter(s => collected.has(s.id)).length
   const pct = Math.round(got / stickers.length * 100)
+  const complete = got === stickers.length
 
   return (
-    <div className="mb-4">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-left transition-colors"
-      >
-        <span className="flex-1 text-sm font-medium text-gray-800">{title}</span>
-        <span className="text-xs text-gray-500">{got}/{stickers.length} · {pct}%</span>
-        <span className="text-xs text-gray-400 ml-1">{open ? '▲' : '▼'}</span>
+    <div className="mb-3">
+      <button onClick={() => setOpen(o => !o)} className="section-header w-full">
+        <span className="flex-1 text-left text-sm font-semibold text-slate-800 dark:text-slate-200">{title}</span>
+        {complete && <span className="badge-green mr-2">Complete ✓</span>}
+        <span className="text-xs text-slate-500 dark:text-slate-400 mr-2">{got}/{stickers.length} · {pct}%</span>
+        <ProgressBar value={got} max={stickers.length} className="w-16" size="sm" />
+        <svg className={`w-4 h-4 text-slate-400 ml-2 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
       </button>
       {open && (
         <div className="sticker-grid mt-2">
@@ -58,70 +57,62 @@ function OverviewTab({ collected }) {
   const pct = Math.round(got / TOTAL_STICKERS * 100)
 
   const cats = [
-    { name: 'Introduction (9)', stickers: SPECIAL_SECTIONS.intro.stickers },
-    { name: 'FIFA Museum (11)', stickers: SPECIAL_SECTIONS.museum.stickers },
-    { name: 'All 48 teams (960)', stickers: TEAMS.flatMap(t => t.stickers) },
-    { name: 'Coca-Cola exclusives (12)', stickers: SPECIAL_SECTIONS.cc.stickers },
+    { name: 'Introduction', stickers: SPECIAL_SECTIONS.intro.stickers },
+    { name: 'FIFA Museum', stickers: SPECIAL_SECTIONS.museum.stickers },
+    { name: '48 teams', stickers: TEAMS.flatMap(t => t.stickers) },
+    { name: 'Coca-Cola exclusives', stickers: SPECIAL_SECTIONS.cc.stickers },
   ]
 
-  const nearComplete = TEAMS
-    .map(t => ({ ...t, got: t.stickers.filter(s => collected.has(s.id)).length }))
-    .filter(t => t.got > 0 && t.got < t.stickers.length)
+  const teamStats = TEAMS.map(t => ({
+    ...t,
+    got: t.stickers.filter(s => collected.has(s.id)).length,
+  }))
+
+  const completedTeams = teamStats.filter(t => t.got === t.stickers.length).length
+  const nearComplete = teamStats.filter(t => t.got > 0 && t.got < t.stickers.length)
     .sort((a, b) => (b.got / b.stickers.length) - (a.got / a.stickers.length))
-    .slice(0, 6)
+    .slice(0, 5)
 
   return (
-    <div>
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        {[
-          { value: got, label: 'Collected', color: 'text-green-600' },
-          { value: TOTAL_STICKERS - got, label: 'Still missing', color: 'text-red-500' },
-          { value: `${pct}%`, label: 'Complete', color: 'text-gray-900' },
-          { value: TOTAL_STICKERS, label: 'Total stickers', color: 'text-amber-600' },
-        ].map(({ value, label, color }) => (
-          <div key={label} className="bg-white border border-gray-200 rounded-xl p-4">
-            <div className={`text-3xl font-semibold ${color}`}>{value}</div>
-            <div className="text-xs text-gray-500 mt-0.5">{label}</div>
-          </div>
-        ))}
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard value={got} label="Stickers collected" color="brand" />
+        <StatCard value={TOTAL_STICKERS - got} label="Still missing" color="red" />
+        <StatCard value={`${pct}%`} label="Album complete" />
+        <StatCard value={completedTeams} label="Full teams" color="green" sublabel="out of 48" />
       </div>
 
-      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Progress by section</h3>
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-6">
-        {cats.map((c, i) => {
-          const cGot = c.stickers.filter(s => collected.has(s.id)).length
-          const cPct = Math.round(cGot / c.stickers.length * 100)
-          return (
-            <div key={c.name} className={`flex items-center gap-3 px-4 py-3 ${i < cats.length - 1 ? 'border-b border-gray-100' : ''}`}>
-              <span className="flex-1 text-sm text-gray-600">{c.name}</span>
-              <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-green-500 rounded-full" style={{ width: `${cPct}%` }} />
+      <div>
+        <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Progress by section</h3>
+        <div className="card overflow-hidden">
+          {cats.map((c, i) => {
+            const cGot = c.stickers.filter(s => collected.has(s.id)).length
+            const cPct = Math.round(cGot / c.stickers.length * 100)
+            return (
+              <div key={c.name} className={`flex items-center gap-3 px-4 py-3 ${i < cats.length - 1 ? 'border-b border-slate-100 dark:border-slate-700' : ''}`}>
+                <span className="flex-1 text-sm text-slate-600 dark:text-slate-400">{c.name}</span>
+                <ProgressBar value={cGot} max={c.stickers.length} className="w-20" />
+                <span className="text-xs text-slate-500 dark:text-slate-500 min-w-[52px] text-right">{cGot}/{c.stickers.length}</span>
               </div>
-              <span className="text-xs text-gray-500 min-w-[40px] text-right">{cGot}/{c.stickers.length}</span>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
 
       {nearComplete.length > 0 && (
-        <>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Nearly complete</h3>
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            {nearComplete.map((t, i) => {
-              const p = Math.round(t.got / t.stickers.length * 100)
-              return (
-                <div key={t.code} className={`flex items-center gap-3 px-4 py-3 ${i < nearComplete.length - 1 ? 'border-b border-gray-100' : ''}`}>
-                  <span className="text-lg">{t.flag}</span>
-                  <span className="flex-1 text-sm">{t.name}</span>
-                  <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-green-500 rounded-full" style={{ width: `${p}%` }} />
-                  </div>
-                  <span className="text-xs text-gray-500 min-w-[32px] text-right">{t.got}/{t.stickers.length}</span>
-                </div>
-              )
-            })}
+        <div>
+          <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Almost complete</h3>
+          <div className="card overflow-hidden">
+            {nearComplete.map((t, i) => (
+              <div key={t.code} className={`flex items-center gap-3 px-4 py-3 ${i < nearComplete.length - 1 ? 'border-b border-slate-100 dark:border-slate-700' : ''}`}>
+                <span className="text-xl w-7 text-center flex-shrink-0">{t.flag}</span>
+                <span className="flex-1 text-sm font-medium text-slate-700 dark:text-slate-300">{t.name}</span>
+                <span className="text-xs text-slate-500">missing {t.stickers.length - t.got}</span>
+                <ProgressBar value={t.got} max={t.stickers.length} className="w-16" />
+              </div>
+            ))}
           </div>
-        </>
+        </div>
       )}
     </div>
   )
@@ -132,7 +123,7 @@ function AlbumTab({ collected, onToggle, editable }) {
   const [search, setSearch] = useState('')
   const lq = search.toLowerCase().trim()
 
-  const searchResults = useMemo(() => {
+  const results = useMemo(() => {
     if (!lq) return null
     return ALL_STICKERS.filter(s =>
       s.id.toLowerCase().includes(lq) ||
@@ -144,19 +135,29 @@ function AlbumTab({ collected, onToggle, editable }) {
 
   return (
     <div>
-      <input
-        type="text"
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-        placeholder="Search by code (BRA14), player name, or country…"
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-green-500"
-      />
-      {searchResults ? (
+      <div className="relative mb-4">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search sticker code, player name, or country…"
+          className="input pl-10"
+        />
+      </div>
+
+      {results ? (
         <div>
-          <p className="text-xs text-gray-500 mb-2">{searchResults.length} sticker{searchResults.length !== 1 ? 's' : ''} found</p>
-          <div className="sticker-grid">
-            {searchResults.map(s => <StickerCard key={s.id} sticker={s} collected={collected} onToggle={onToggle} editable={editable} />)}
-          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">{results.length} result{results.length !== 1 ? 's' : ''}</p>
+          {results.length === 0 ? (
+            <EmptyState icon="🔍" title="No stickers found" description="Try searching by code like BRA14, or a player's name" />
+          ) : (
+            <div className="sticker-grid">
+              {results.map(s => <StickerCard key={s.id} sticker={s} collected={collected} onToggle={onToggle} editable={editable} />)}
+            </div>
+          )}
         </div>
       ) : (
         <>
@@ -173,7 +174,7 @@ function AlbumTab({ collected, onToggle, editable }) {
 }
 
 // ── Collect tab ───────────────────────────────────────────────────
-function CollectTab({ collected, onToggle, editable }) {
+function CollectTab({ collected, onToggle }) {
   const [query, setQuery] = useState('')
   const lq = query.toLowerCase().trim()
 
@@ -184,51 +185,67 @@ function CollectTab({ collected, onToggle, editable }) {
       s.id.toLowerCase() === lq ||
       s.label.toLowerCase().includes(lq) ||
       s.team.toLowerCase().includes(lq)
-    ).slice(0, 24)
+    ).slice(0, 30)
   }, [lq])
+
+  const allSameTeam = results.length > 1 && results.every(r => r.code === results[0].code)
 
   function markAll() {
     results.forEach(s => { if (!collected.has(s.id)) onToggle(s.id) })
   }
 
-  const allSameTeam = results.length > 1 && results.every(r => r.code === results[0].code)
-
   return (
     <div>
-      <input
-        type="text"
-        value={query}
-        onChange={e => setQuery(e.target.value)}
-        placeholder="Type a code (ARG10) or player name (Messi)…"
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-green-500"
-        autoFocus
-      />
+      <div className="relative mb-4">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          type="text"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Type a code like ARG10 or a player name…"
+          className="input pl-10"
+          autoFocus
+        />
+      </div>
+
       {!lq && (
-        <p className="text-sm text-gray-400 py-2">
-          Type a sticker code like <code className="bg-gray-100 px-1 rounded">BRA14</code> or a player name to find and mark stickers.
-        </p>
+        <div className="card p-6 text-center">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Type a sticker code like <span className="font-mono font-semibold text-brand-600 dark:text-brand-400">BRA14</span> or a player name like <span className="font-semibold text-brand-600 dark:text-brand-400">Messi</span> to mark stickers as collected.
+          </p>
+        </div>
       )}
-      {editable && allSameTeam && (
-        <button onClick={markAll} className="w-full text-sm border border-gray-200 rounded-lg py-2 mb-3 hover:bg-gray-50 transition-colors text-gray-600">
+
+      {lq && results.length === 0 && (
+        <EmptyState icon="🔍" title="No matches" description="Try a different code or player name" />
+      )}
+
+      {allSameTeam && (
+        <button onClick={markAll} className="w-full btn-secondary mb-3 text-brand-600 dark:text-brand-400 border-brand-200 dark:border-brand-800 hover:bg-brand-50 dark:hover:bg-brand-950">
           Mark all {results[0].team} stickers as collected
         </button>
       )}
-      <div className="space-y-1.5">
+
+      <div className="space-y-2">
         {results.map(s => {
           const got = collected.has(s.id)
           return (
-            <div
+            <button
               key={s.id}
-              onClick={() => editable && onToggle(s.id)}
-              className={`flex items-center gap-3 px-4 py-3 border rounded-xl transition-colors ${editable ? 'cursor-pointer' : ''} ${got ? 'border-green-300 bg-green-50' : 'border-gray-200 hover:border-gray-300 bg-white'}`}
+              onClick={() => onToggle(s.id)}
+              className={`w-full flex items-center gap-3 px-4 py-3 card rounded-xl text-left transition-all hover:shadow-card-hover ${got ? 'bg-brand-50 dark:bg-brand-950 border-brand-200 dark:border-brand-800' : ''}`}
             >
-              <span className={`text-sm font-semibold min-w-[52px] ${got ? 'text-green-600' : 'text-gray-400'}`}>{s.id}</span>
-              <div className="flex-1">
-                <div className="text-sm text-gray-800">{s.label}</div>
-                <div className="text-xs text-gray-400">{s.flag} {s.team}</div>
+              <span className={`text-sm font-bold min-w-[52px] ${got ? 'text-brand-500' : 'text-slate-400 dark:text-slate-500'}`}>{s.id}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{s.label}</div>
+                <div className="text-xs text-slate-400 dark:text-slate-500">{s.flag} {s.team}</div>
               </div>
-              {editable && <span className={`text-xs font-medium ${got ? 'text-green-600' : 'text-gray-400'}`}>{got ? '✓ Got' : '+ Mark'}</span>}
-            </div>
+              <div className={`text-xs font-semibold flex-shrink-0 ${got ? 'text-brand-500' : 'text-slate-400'}`}>
+                {got ? '✓ Got it' : '+ Mark'}
+              </div>
+            </button>
           )
         })}
       </div>
@@ -238,145 +255,150 @@ function CollectTab({ collected, onToggle, editable }) {
 
 // ── Teams tab ─────────────────────────────────────────────────────
 function TeamsTab({ collected }) {
+  const [sort, setSort] = useState('alpha') // 'alpha' | 'progress' | 'missing'
+
   const sections = [
     { key: 'intro', title: 'Introduction', flag: '⭐', stickers: SPECIAL_SECTIONS.intro.stickers },
     { key: 'museum', title: 'FIFA Museum', flag: '🏆', stickers: SPECIAL_SECTIONS.museum.stickers },
     ...TEAMS.map(t => ({ key: t.code, title: t.name, flag: t.flag, stickers: t.stickers })),
-    { key: 'cc', title: 'Coca-Cola Exclusives', flag: '🥤', stickers: SPECIAL_SECTIONS.cc.stickers },
-  ]
+    { key: 'cc', title: 'Coca-Cola', flag: '🥤', stickers: SPECIAL_SECTIONS.cc.stickers },
+  ].map(s => ({ ...s, got: s.stickers.filter(st => collected.has(st.id)).length }))
+
+  const sorted = [...sections].sort((a, b) => {
+    if (sort === 'progress') return (b.got / b.stickers.length) - (a.got / a.stickers.length)
+    if (sort === 'missing') return (a.stickers.length - a.got) - (b.stickers.length - b.got)
+    return a.title.localeCompare(b.title)
+  })
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-      {sections.map((s, i) => {
-        const got = s.stickers.filter(st => collected.has(st.id)).length
-        const pct = Math.round(got / s.stickers.length * 100)
-        return (
-          <div key={s.key} className={`flex items-center gap-3 px-4 py-3 ${i < sections.length - 1 ? 'border-b border-gray-100' : ''}`}>
-            <span className="text-lg w-7 text-center">{s.flag}</span>
-            <span className="flex-1 text-sm text-gray-700">{s.title}</span>
-            <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+    <div>
+      <div className="flex gap-2 mb-4">
+        {[['alpha', 'A–Z'], ['progress', 'Progress'], ['missing', 'Missing']].map(([val, label]) => (
+          <button
+            key={val}
+            onClick={() => setSort(val)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${sort === val ? 'bg-brand-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="card overflow-hidden">
+        {sorted.map((s, i) => {
+          const pct = Math.round(s.got / s.stickers.length * 100)
+          const complete = s.got === s.stickers.length
+          return (
+            <div key={s.key} className={`flex items-center gap-3 px-4 py-3 ${i < sorted.length - 1 ? 'border-b border-slate-100 dark:border-slate-700' : ''} ${complete ? 'bg-emerald-50 dark:bg-emerald-950' : ''}`}>
+              <span className="text-xl w-7 text-center flex-shrink-0">{s.flag}</span>
+              <span className="flex-1 text-sm font-medium text-slate-700 dark:text-slate-300 truncate">{s.title}</span>
+              {complete && <span className="badge-green text-xs">✓</span>}
+              <ProgressBar value={s.got} max={s.stickers.length} className="w-16 hidden sm:block" />
+              <span className="text-xs text-slate-400 dark:text-slate-500 min-w-[36px] text-right">{s.got}/{s.stickers.length}</span>
             </div>
-            <span className="text-xs text-gray-400 min-w-[36px] text-right">{got}/{s.stickers.length}</span>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
     </div>
   )
 }
 
-// ── Main Tracker component ────────────────────────────────────────
+// ── Main Tracker ──────────────────────────────────────────────────
 export default function Tracker({ userId, editable = false }) {
   const [collected, setCollected] = useState(new Set())
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('overview')
-  const [toast, setToast] = useState('')
+  const [toast, setToast] = useState({ msg: '', show: false })
   const toastTimer = useRef(null)
-  const pendingToggles = useRef(new Set())
+  const pending = useRef(new Set())
 
-  // Load collection from Supabase
   useEffect(() => {
     if (!userId) return
-    async function load() {
-      const { data, error } = await supabase
-        .from('collections')
-        .select('sticker_id')
-        .eq('user_id', userId)
-      if (!error && data) setCollected(new Set(data.map(r => r.sticker_id)))
-      setLoading(false)
-    }
-    load()
+    supabase.from('collections').select('sticker_id').eq('user_id', userId)
+      .then(({ data, error }) => {
+        if (!error && data) setCollected(new Set(data.map(r => r.sticker_id)))
+        setLoading(false)
+      })
   }, [userId])
 
-  // Subscribe to real-time updates
   useEffect(() => {
     if (!userId) return
-    const channel = supabase
-      .channel(`collection:${userId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'collections', filter: `user_id=eq.${userId}` }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          setCollected(prev => new Set([...prev, payload.new.sticker_id]))
-        } else if (payload.eventType === 'DELETE') {
-          setCollected(prev => { const next = new Set(prev); next.delete(payload.old.sticker_id); return next })
-        }
-      })
-      .subscribe()
+    const channel = supabase.channel(`col:${userId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'collections', filter: `user_id=eq.${userId}` }, payload => {
+        if (payload.eventType === 'INSERT') setCollected(p => new Set([...p, payload.new.sticker_id]))
+        else if (payload.eventType === 'DELETE') setCollected(p => { const n = new Set(p); n.delete(payload.old.sticker_id); return n })
+      }).subscribe()
     return () => supabase.removeChannel(channel)
   }, [userId])
 
   function showToast(msg) {
-    setToast(msg)
+    setToast({ msg, show: true })
     clearTimeout(toastTimer.current)
-    toastTimer.current = setTimeout(() => setToast(''), 1800)
+    toastTimer.current = setTimeout(() => setToast(t => ({ ...t, show: false })), 1800)
   }
 
   const handleToggle = useCallback(async (stickerId) => {
-    if (!editable || pendingToggles.current.has(stickerId)) return
-    pendingToggles.current.add(stickerId)
-
+    if (!editable || pending.current.has(stickerId)) return
+    pending.current.add(stickerId)
     const wasCollected = collected.has(stickerId)
-    // Optimistic update
     setCollected(prev => {
       const next = new Set(prev)
       wasCollected ? next.delete(stickerId) : next.add(stickerId)
       return next
     })
     showToast(wasCollected ? 'Removed' : 'Got it ✓')
-
-    // Persist to Supabase
     if (wasCollected) {
       await supabase.from('collections').delete().eq('user_id', userId).eq('sticker_id', stickerId)
     } else {
       await supabase.from('collections').insert({ user_id: userId, sticker_id: stickerId })
     }
-    pendingToggles.current.delete(stickerId)
+    pending.current.delete(stickerId)
   }, [collected, editable, userId])
 
   const pct = Math.round(collected.size / TOTAL_STICKERS * 100)
 
-  const tabs = ['overview', 'album', 'collect', 'teams']
+  const tabs = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'album', label: 'Album' },
+    ...(editable ? [{ id: 'collect', label: 'Collect' }] : []),
+    { id: 'teams', label: 'Teams' },
+  ]
 
-  if (loading) return <div className="py-12 text-center text-gray-400 text-sm">Loading collection…</div>
+  if (loading) return <PageLoader />
 
   return (
-    <div className="pt-4">
-      {/* Header */}
-      <div className="mb-4">
-        <div className="flex justify-between items-baseline mb-2">
-          <span className="text-sm font-medium text-gray-700">{collected.size} / {TOTAL_STICKERS} stickers</span>
-          <span className="text-sm text-gray-500">{pct}%</span>
+    <div>
+      {/* Progress header */}
+      <div className="card p-4 mb-5">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{collected.size} / {TOTAL_STICKERS} stickers</span>
+          <span className={`text-sm font-bold ${pct === 100 ? 'text-emerald-500' : 'text-brand-600 dark:text-brand-400'}`}>{pct}%</span>
         </div>
-        <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-          <div className="h-full bg-green-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
-        </div>
+        <ProgressBar value={collected.size} max={TOTAL_STICKERS} size="lg" />
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-200 mb-5">
+      <div className="flex border-b border-slate-200 dark:border-slate-700 mb-5 -mx-4 px-4">
         {tabs.map(t => (
           <button
-            key={t}
-            onClick={() => setActiveTab(t)}
-            className={`flex-1 py-2.5 text-sm capitalize transition-colors ${activeTab === t ? 'border-b-2 border-green-600 font-medium text-green-700 -mb-px' : 'text-gray-500 hover:text-gray-700'}`}
+            key={t.id}
+            onClick={() => setActiveTab(t.id)}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              activeTab === t.id
+                ? 'border-brand-500 text-brand-600 dark:text-brand-400'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}
           >
-            {t}
+            {t.label}
           </button>
         ))}
       </div>
 
-      {/* Content */}
       {activeTab === 'overview' && <OverviewTab collected={collected} />}
       {activeTab === 'album' && <AlbumTab collected={collected} onToggle={handleToggle} editable={editable} />}
-      {activeTab === 'collect' && editable && <CollectTab collected={collected} onToggle={handleToggle} editable={editable} />}
-      {activeTab === 'collect' && !editable && <div className="text-sm text-gray-400 py-4">View-only mode.</div>}
+      {activeTab === 'collect' && <CollectTab collected={collected} onToggle={handleToggle} />}
       {activeTab === 'teams' && <TeamsTab collected={collected} />}
 
-      {/* Toast */}
-      {toast && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-sm px-4 py-2 rounded-full pointer-events-none z-50">
-          {toast}
-        </div>
-      )}
+      <Toast message={toast.msg} visible={toast.show} />
     </div>
   )
 }
