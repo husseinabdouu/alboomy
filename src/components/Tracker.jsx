@@ -302,6 +302,144 @@ function TeamsTab({ collected }) {
   )
 }
 
+// ── Doubles tab ───────────────────────────────────────────────────
+function DoublesTab({ userId, editable }) {
+  const [duplicates, setDuplicates] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const lq = search.toLowerCase().trim()
+
+  const addResults = useMemo(() => {
+    if (!editable || !lq) return []
+    return ALL_STICKERS.filter(s =>
+      s.id.toLowerCase().includes(lq) ||
+      s.label.toLowerCase().includes(lq) ||
+      s.team.toLowerCase().includes(lq) ||
+      s.code.toLowerCase().includes(lq)
+    ).slice(0, 30)
+  }, [editable, lq])
+
+  const loadDuplicates = useCallback(async () => {
+    if (!userId) {
+      setDuplicates([])
+      setLoading(false)
+      return
+    }
+    const { data } = await supabase.from('duplicates').select('*').eq('user_id', userId)
+    setDuplicates(data || [])
+    setLoading(false)
+  }, [userId])
+
+  useEffect(() => {
+    setLoading(true)
+    loadDuplicates()
+  }, [loadDuplicates])
+
+  async function addDuplicate(sticker) {
+    if (!editable) return
+    const existing = duplicates.find(d => d.sticker_id === sticker.id)
+    if (existing) {
+      await supabase.from('duplicates').update({ quantity: existing.quantity + 1 }).eq('id', existing.id)
+    } else {
+      await supabase.from('duplicates').insert({ user_id: userId, sticker_id: sticker.id, quantity: 1 })
+    }
+    await loadDuplicates()
+    setSearch('')
+  }
+
+  async function removeDuplicate(dup) {
+    if (!editable) return
+    if (dup.quantity > 1) {
+      await supabase.from('duplicates').update({ quantity: dup.quantity - 1 }).eq('id', dup.id)
+    } else {
+      await supabase.from('duplicates').delete().eq('id', dup.id)
+    }
+    await loadDuplicates()
+  }
+
+  if (loading) return <PageLoader />
+
+  return (
+    <div>
+      <div className="relative mb-4">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search sticker code, name, or team to add as duplicate…"
+          className="input pl-10"
+          disabled={!editable}
+        />
+      </div>
+
+      {editable && lq && (
+        <div className="mb-4">
+          {addResults.length === 0 ? (
+            <EmptyState icon="🔍" title="No stickers found" description="Try a different code, player name, or team" />
+          ) : (
+            <>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">{addResults.length} result{addResults.length !== 1 ? 's' : ''}</p>
+              <div className="space-y-2">
+                {addResults.map(s => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => addDuplicate(s)}
+                    className="w-full flex items-center gap-3 px-4 py-3 card rounded-xl text-left transition-all hover:shadow-card-hover"
+                  >
+                    <span className="text-sm font-bold min-w-[52px] text-brand-500">{s.id}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{s.label}</div>
+                      <div className="text-xs text-slate-400 dark:text-slate-500">{s.flag} {s.team}</div>
+                    </div>
+                    <span className="text-xs font-semibold flex-shrink-0 text-brand-600 dark:text-brand-400">+ Add</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {duplicates.length === 0 ? (
+        <EmptyState icon="🔄" title="No duplicates listed" description={editable ? 'Search above to add spare stickers you can trade' : 'No spare stickers listed yet'} />
+      ) : (
+        <div className="space-y-2">
+          {duplicates.map(dup => {
+            const sticker = ALL_STICKERS.find(s => s.id === dup.sticker_id)
+            if (!sticker) return null
+            return (
+              <div key={dup.id} className="w-full flex items-center gap-3 px-4 py-3 card rounded-xl">
+                <span className="text-sm font-bold min-w-[52px] text-brand-500">{sticker.id}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{sticker.label}</div>
+                  <div className="text-xs text-slate-400 dark:text-slate-500">{sticker.flag} {sticker.team}</div>
+                </div>
+                <span className="badge-amber">×{dup.quantity}</span>
+                {editable && (
+                  <button
+                    type="button"
+                    onClick={() => removeDuplicate(dup)}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors flex-shrink-0"
+                    aria-label="Remove duplicate"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main Tracker ──────────────────────────────────────────────────
 export default function Tracker({ userId, editable = false }) {
   const [collected, setCollected] = useState(new Set())
@@ -360,6 +498,7 @@ export default function Tracker({ userId, editable = false }) {
     { id: 'overview', label: 'Overview' },
     { id: 'album', label: 'Album' },
     ...(editable ? [{ id: 'collect', label: 'Collect' }] : []),
+    { id: 'doubles', label: 'Doubles' },
     { id: 'teams', label: 'Teams' },
   ]
 
@@ -396,6 +535,7 @@ export default function Tracker({ userId, editable = false }) {
       {activeTab === 'overview' && <OverviewTab collected={collected} />}
       {activeTab === 'album' && <AlbumTab collected={collected} onToggle={handleToggle} editable={editable} />}
       {activeTab === 'collect' && <CollectTab collected={collected} onToggle={handleToggle} />}
+      {activeTab === 'doubles' && <DoublesTab userId={userId} editable={editable} />}
       {activeTab === 'teams' && <TeamsTab collected={collected} />}
 
       <Toast message={toast.msg} visible={toast.show} />
