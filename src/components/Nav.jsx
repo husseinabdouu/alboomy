@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
+import { supabase } from '../lib/supabase'
 import { Avatar } from './ui'
 
 const NAV_LINKS = [
@@ -99,6 +100,47 @@ function ProfileDropdown() {
 
 export default function Nav() {
   const { pathname } = useLocation()
+  const { user } = useAuth()
+  const [pendingRequestCount, setPendingRequestCount] = useState(0)
+
+  const fetchPendingCount = useCallback(async () => {
+    if (!user?.id) return
+    const { count } = await supabase
+      .from('friendships')
+      .select('id', { count: 'exact', head: true })
+      .eq('addressee_id', user.id)
+      .eq('status', 'pending')
+    setPendingRequestCount(count || 0)
+  }, [user?.id])
+
+  useEffect(() => {
+    if (!user?.id) return
+
+    fetchPendingCount()
+
+    const channel = supabase
+      .channel(`friend-requests:${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'friendships',
+        filter: `addressee_id=eq.${user.id}`,
+      }, () => {
+        fetchPendingCount()
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [user?.id, fetchPendingCount])
+
+  function FriendsBadge() {
+    if (pendingRequestCount <= 0) return null
+    return (
+      <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+        {pendingRequestCount > 9 ? '9+' : pendingRequestCount}
+      </span>
+    )
+  }
 
   return (
     <>
@@ -116,9 +158,10 @@ export default function Nav() {
               <Link
                 key={l.to}
                 to={l.to}
-                className={`nav-link ${pathname.startsWith(l.to) ? 'active' : ''}`}
+                className={`nav-link relative ${pathname.startsWith(l.to) ? 'active' : ''}`}
               >
                 {l.label}
+                {l.to === '/friends' && <FriendsBadge />}
               </Link>
             ))}
           </nav>
@@ -139,9 +182,12 @@ export default function Nav() {
             <Link
               key={l.to}
               to={l.to}
-              className={`flex-1 flex flex-col items-center gap-0.5 py-2 rounded-lg transition-colors ${active ? 'text-brand-600 dark:text-brand-400' : 'text-slate-500 dark:text-slate-400'}`}
+              className={`relative flex-1 flex flex-col items-center gap-0.5 py-2 rounded-lg transition-colors ${active ? 'text-brand-600 dark:text-brand-400' : 'text-slate-500 dark:text-slate-400'}`}
             >
-              <span className="text-lg leading-none">{l.icon}</span>
+              <span className="relative inline-flex">
+                <span className="text-lg leading-none">{l.icon}</span>
+                {l.to === '/friends' && <FriendsBadge />}
+              </span>
               <span className="text-[10px] font-medium">{l.label}</span>
             </Link>
           )
