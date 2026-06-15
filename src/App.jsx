@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import Nav from './components/Nav'
 import AuthPage from './pages/Auth'
+import ResetPasswordPage from './pages/ResetPassword'
 import TrackerPage from './pages/Tracker'
 import FriendsPage from './pages/Friends'
 import GroupsPage from './pages/Groups'
@@ -40,6 +41,7 @@ export default function App() {
           <Routes>
             {/* Public */}
             <Route path="/auth" element={<AuthPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/join/:code" element={<JoinGroupPage />} />
 
             {/* Private */}

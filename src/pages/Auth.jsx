@@ -13,7 +13,8 @@ export default function AuthPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
-  const { signIn, signUp } = useAuth()
+  const [resetLoading, setResetLoading] = useState(false)
+  const { signIn, signUp, resetPassword } = useAuth()
   const { dark, toggle } = useTheme()
   const navigate = useNavigate()
 
@@ -35,6 +36,20 @@ export default function AuthPage() {
       else setSuccess('Account created! Check your email to confirm, then sign in.')
     }
     setLoading(false)
+  }
+
+  async function handleForgotPassword() {
+    setError('')
+    setSuccess('')
+    if (!email.trim()) {
+      setError('Please enter your email address first')
+      return
+    }
+    setResetLoading(true)
+    const { error } = await resetPassword(email.trim())
+    if (error) setError(error.message)
+    else setSuccess('A password reset link has been sent to your email.')
+    setResetLoading(false)
   }
 
   return (
@@ -118,7 +133,19 @@ export default function AuthPage() {
               </div>
 
               <div>
-                <label className="label">Password</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="label mb-0">Password</label>
+                  {mode === 'login' && (
+                    <button
+                      type="button"
+                      onClick={handleForgotPassword}
+                      disabled={resetLoading}
+                      className="text-xs text-brand-600 dark:text-brand-400 hover:underline disabled:opacity-50"
+                    >
+                      {resetLoading ? 'Sending…' : 'Forgot password?'}
+                    </button>
+                  )}
+                </div>
                 <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} className="input" />
               </div>
 
