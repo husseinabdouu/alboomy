@@ -41,8 +41,8 @@ export default function AuthPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4">
-        <span className="font-bold text-xl text-slate-900 dark:text-white">
-          Alb<span className="text-brand-500">oomy</span>
+        <span className="font-bold text-xl text-brand-500">
+          Alboomy
         </span>
         <button
           onClick={toggle}
