@@ -187,20 +187,20 @@ export default function GroupDetailPage() {
   const [editDescription, setEditDescription] = useState('')
   const [editError, setEditError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [unreadChat, setUnreadChat] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
 
   useEffect(() => { load() }, [id, user])
 
   useEffect(() => {
-    if (activeTab === 'chat' && unreadChat && user?.id) {
+    if (activeTab === 'chat' && unreadCount > 0 && user?.id) {
       supabase
         .from('group_members')
         .update({ last_read_at: new Date().toISOString() })
         .eq('group_id', id)
         .eq('user_id', user.id)
-      setUnreadChat(false)
+      setUnreadCount(0)
     }
-  }, [activeTab, unreadChat, id, user?.id])
+  }, [activeTab, unreadCount, id, user?.id])
 
   async function load() {
     const [groupRes, membersRes] = await Promise.all([
@@ -225,9 +225,9 @@ export default function GroupDetailPage() {
         .select('id', { count: 'exact', head: true })
         .eq('group_id', id)
         .gt('created_at', myMember.last_read_at)
-      setUnreadChat((count || 0) > 0)
+      setUnreadCount(count || 0)
     } else {
-      setUnreadChat(false)
+      setUnreadCount(0)
     }
 
     // Build leaderboard
@@ -356,8 +356,10 @@ export default function GroupDetailPage() {
             }`}
           >
             {label}
-            {tab === 'chat' && unreadChat && (
-              <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
+            {tab === 'chat' && unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full leading-none">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
             )}
           </button>
         ))}
