@@ -14,10 +14,19 @@ function colorForString(str) {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
 }
 
-export function Avatar({ name, size = 'md', className = '' }) {
+export function Avatar({ name, src, size = 'md', className = '' }) {
   const initials = (name || '?').slice(0, 2).toUpperCase()
   const color = colorForString(name)
   const sizes = { sm: 'w-7 h-7 text-xs', md: 'w-9 h-9 text-sm', lg: 'w-12 h-12 text-base', xl: 'w-16 h-16 text-xl' }
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={name || 'avatar'}
+        className={`rounded-full object-cover flex-shrink-0 ${sizes[size]} ${className}`}
+      />
+    )
+  }
   return (
     <div className={`avatar ${color} ${sizes[size]} ${className}`}>
       {initials}
@@ -129,4 +138,22 @@ export function InviteCode({ code, url }) {
   )
 }
 
+export function ImageLightbox({ src, alt, onClose }) {
+  if (!src) return null
+  return (
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <button onClick={onClose} className="absolute top-4 right-4 text-white/80 hover:text-white">
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+      <img
+        src={src}
+        alt={alt || 'Profile picture'}
+        className="max-w-full max-h-full rounded-2xl object-contain"
+        onClick={e => e.stopPropagation()}
+      />
+    </div>
+  )
+}
 

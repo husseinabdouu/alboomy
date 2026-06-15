@@ -1,14 +1,65 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
-import { Avatar, Toast, Spinner, EmptyState, PageLoader } from '../components/ui'
+import ImageCropModal from '../components/ImageCropModal'
+import { Avatar, Toast, Spinner, EmptyState, PageLoader, ImageLightbox } from '../components/ui'
 import { ALL_STICKERS, STICKER_MAP } from '../lib/stickers'
 
-function EditProfileSection({ profile, updateProfile, checkUsernameAvailable }) {
+function EditProfileSection({ user, profile, updateProfile, checkUsernameAvailable }) {
   const [displayName, setDisplayName] = useState(profile?.display_name || '')
   const [username, setUsername] = useState(profile?.username || '')
   const [saving, setSaving] = useState(false)
+  const [cropFile, setCropFile] = useState(null)
+  const [pendingBlob, setPendingBlob] = useState(null)
+  const [pendingPreview, setPendingPreview] = useState(null)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [editingPhoto, setEditingPhoto] = useState(false)
+  const [removeAvatar, setRemoveAvatar] = useState(false)
   const [msg, setMsg] = useState({ text: '', type: '' })
+  const fileInputRef = useRef(null)
+
+  function handleAvatarChange(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !user?.id) return
+
+    if (!file.type.startsWith('image/')) {
+      setMsg({ text: 'Please select an image file', type: 'error' })
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setMsg({ text: 'Image must be 5MB or smaller', type: 'error' })
+      return
+    }
+
+    setMsg({ text: '', type: '' })
+    setRemoveAvatar(false)
+    setCropFile(file)
+  }
+
+  function handleRemovePhoto() {
+    if (pendingPreview) URL.revokeObjectURL(pendingPreview)
+    setPendingBlob(null)
+    setPendingPreview(null)
+    setRemoveAvatar(true)
+  }
+
+  async function handleEditPhoto() {
+    if (!profile.avatar_url) return
+    setMsg({ text: '', type: '' })
+    setRemoveAvatar(false)
+    setEditingPhoto(true)
+    try {
+      const res = await fetch(profile.avatar_url)
+      if (!res.ok) throw new Error('Failed to load profile photo')
+      const blob = await res.blob()
+      const file = new File([blob], 'avatar.jpg', { type: blob.type })
+      setCropFile(file)
+    } catch (err) {
+      setMsg({ text: err.message || 'Failed to load profile photo', type: 'error' })
+    }
+    setEditingPhoto(false)
+  }
 
   async function save(e) {
     e.preventDefault()
@@ -22,15 +73,127 @@ function EditProfileSection({ profile, updateProfile, checkUsernameAvailable }) 
       if (!available) { setMsg({ text: 'Username already taken', type: 'error' }); setSaving(false); return }
     }
 
-    const { error } = await updateProfile({ display_name: displayName, username })
-    if (error) setMsg({ text: error.message, type: 'error' })
-    else setMsg({ text: 'Profile updated!', type: 'success' })
+    const updates = { display_name: displayName, username }
+
+    if (removeAvatar) {
+      try {
+        await supabase.storage.from('avatars').remove([`${user.id}/avatar.jpg`])
+      } catch {
+        // ignore if file doesn't exist
+      }
+      updates.avatar_url = null
+    } else if (pendingBlob) {
+      const path = `${user.id}/avatar.jpg`
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, pendingBlob, { upsert: true, contentType: 'image/jpeg' })
+
+      if (uploadError) {
+        setMsg({ text: uploadError.message, type: 'error' })
+        setSaving(false)
+        return
+      }
+
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
+      updates.avatar_url = `${publicUrl}?t=${Date.now()}`
+    }
+
+    const { error } = await updateProfile(updates)
+    if (error) {
+      setMsg({ text: error.message, type: 'error' })
+    } else {
+      setMsg({ text: 'Profile updated!', type: 'success' })
+      if (pendingPreview) URL.revokeObjectURL(pendingPreview)
+      setPendingBlob(null)
+      setPendingPreview(null)
+      setRemoveAvatar(false)
+    }
     setSaving(false)
   }
+
+  const avatarSrc = removeAvatar ? null : (pendingPreview || profile.avatar_url)
 
   return (
     <div className="card p-6">
       <h2 className="text-base font-semibold text-slate-900 dark:text-white mb-5">Account details</h2>
+
+      <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100 dark:border-slate-700">
+        <button
+          type="button"
+          onClick={() => avatarSrc && setLightboxOpen(true)}
+          className={`flex-shrink-0 ${avatarSrc ? 'cursor-pointer' : ''}`}
+          disabled={!avatarSrc}
+        >
+          <Avatar
+            name={profile.display_name || profile.username}
+            src={avatarSrc}
+            size="xl"
+          />
+        </button>
+        <div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleAvatarChange}
+            className="hidden"
+          />
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={saving || editingPhoto}
+              className="btn-secondary"
+            >
+              Change photo
+            </button>
+            {profile.avatar_url && !pendingPreview && !removeAvatar && (
+              <button
+                type="button"
+                onClick={handleEditPhoto}
+                disabled={saving || editingPhoto}
+                className="btn-secondary flex items-center gap-2"
+              >
+                {editingPhoto && <Spinner size="sm" />}
+                {editingPhoto ? 'Loading…' : 'Edit photo'}
+              </button>
+            )}
+          </div>
+          {(profile.avatar_url || pendingPreview) && (
+            <button
+              type="button"
+              onClick={handleRemovePhoto}
+              disabled={saving || editingPhoto}
+              className="text-xs text-red-500 hover:underline mt-2 disabled:opacity-50"
+            >
+              Remove photo
+            </button>
+          )}
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">JPG, PNG or GIF · max 5MB</p>
+        </div>
+      </div>
+
+      {cropFile && (
+        <ImageCropModal
+          file={cropFile}
+          onCancel={() => setCropFile(null)}
+          onCropped={(blob) => {
+            setRemoveAvatar(false)
+            setPendingBlob(blob)
+            setPendingPreview(URL.createObjectURL(blob))
+            setCropFile(null)
+          }}
+        />
+      )}
+
+      {lightboxOpen && (
+        <ImageLightbox
+          src={avatarSrc}
+          alt={profile.display_name || profile.username}
+          onClose={() => setLightboxOpen(false)}
+        />
+      )}
+
       <form onSubmit={save} className="space-y-4">
         <div>
           <label className="label">Display name</label>
@@ -199,6 +362,7 @@ function DuplicatesSection({ userId }) {
 
 export default function ProfilePage() {
   const { user, profile, updateProfile, checkUsernameAvailable } = useAuth()
+  const [lightboxOpen, setLightboxOpen] = useState(false)
 
   if (!profile) return <PageLoader />
 
@@ -207,7 +371,14 @@ export default function ProfilePage() {
       <div className="page-header">
         {/* Profile header */}
         <div className="flex items-center gap-4 mb-6">
-          <Avatar name={profile.display_name || profile.username} size="xl" />
+          <button
+            type="button"
+            onClick={() => profile.avatar_url && setLightboxOpen(true)}
+            className={`flex-shrink-0 ${profile.avatar_url ? 'cursor-pointer' : ''}`}
+            disabled={!profile.avatar_url}
+          >
+            <Avatar name={profile.display_name || profile.username} src={profile.avatar_url} size="xl" />
+          </button>
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
               {profile.display_name || profile.username}
@@ -218,8 +389,17 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {lightboxOpen && (
+        <ImageLightbox
+          src={profile.avatar_url}
+          alt={profile.display_name || profile.username}
+          onClose={() => setLightboxOpen(false)}
+        />
+      )}
+
       <div className="space-y-5 pb-20 sm:pb-0">
         <EditProfileSection
+          user={user}
           profile={profile}
           updateProfile={updateProfile}
           checkUsernameAvailable={checkUsernameAvailable}

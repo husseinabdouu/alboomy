@@ -51,7 +51,7 @@ function ProfileDropdown() {
         onClick={() => setOpen(o => !o)}
         className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
       >
-        <Avatar name={profile?.display_name || profile?.username} size="sm" />
+        <Avatar name={profile?.display_name || profile?.username} src={profile?.avatar_url} size="sm" />
         <span className="text-sm font-medium text-slate-700 dark:text-slate-300 hidden sm:block max-w-[100px] truncate">
           {profile?.display_name || profile?.username}
         </span>
@@ -62,11 +62,14 @@ function ProfileDropdown() {
 
       {open && (
         <div className="absolute right-0 top-full mt-1.5 w-52 card shadow-modal py-1 z-50">
-          <div className="px-4 py-2.5 border-b border-slate-100 dark:border-slate-700">
-            <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
-              {profile?.display_name || profile?.username}
-            </p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">@{profile?.username}</p>
+          <div className="px-4 py-2.5 border-b border-slate-100 dark:border-slate-700 flex items-center gap-3">
+            <Avatar name={profile?.display_name || profile?.username} src={profile?.avatar_url} size="md" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                {profile?.display_name || profile?.username}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">@{profile?.username}</p>
+            </div>
           </div>
           <button
             onClick={() => { navigate('/profile'); setOpen(false) }}

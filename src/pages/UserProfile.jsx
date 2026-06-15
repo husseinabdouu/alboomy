@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { Avatar, ProgressBar, EmptyState, PageLoader, Toast, Spinner } from '../components/ui'
+import { Avatar, ProgressBar, EmptyState, PageLoader, Toast, Spinner, ImageLightbox } from '../components/ui'
 import Tracker from '../components/Tracker'
 import { TOTAL_STICKERS, ALL_STICKERS } from '../lib/stickers'
 
@@ -17,6 +17,7 @@ export default function UserProfilePage() {
   const [actionLoading, setActionLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('album')
   const [toast, setToast] = useState({ msg: '', show: false })
+  const [lightboxOpen, setLightboxOpen] = useState(false)
 
   useEffect(() => {
     if (username) load()
@@ -73,7 +74,14 @@ export default function UserProfilePage() {
       <div className="page-header">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-4">
-            <Avatar name={profile.display_name || profile.username} size="xl" />
+            <button
+              type="button"
+              onClick={() => profile.avatar_url && setLightboxOpen(true)}
+              className={`flex-shrink-0 ${profile.avatar_url ? 'cursor-pointer' : ''}`}
+              disabled={!profile.avatar_url}
+            >
+              <Avatar name={profile.display_name || profile.username} src={profile.avatar_url} size="xl" />
+            </button>
             <div>
               <h1 className="text-xl font-bold text-slate-900 dark:text-white">
                 {profile.display_name || profile.username}
@@ -151,6 +159,14 @@ export default function UserProfilePage() {
             })}
           </div>
         )
+      )}
+
+      {lightboxOpen && (
+        <ImageLightbox
+          src={profile.avatar_url}
+          alt={profile.display_name || profile.username}
+          onClose={() => setLightboxOpen(false)}
+        />
       )}
 
       <Toast message={toast.msg} visible={toast.show} />
