@@ -142,6 +142,12 @@ function FriendCard({ friend, myUserId, onRemove }) {
           )}
         </div>
         <div className="flex flex-col gap-1.5">
+          <Link
+            to={`/messages/${friend.username}`}
+            className="text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 bg-brand-50 dark:bg-brand-950 hover:bg-brand-100 dark:hover:bg-brand-900 px-3 py-1.5 rounded-lg text-center transition-colors"
+          >
+            💬 Message
+          </Link>
           <button
             onClick={() => setSwapOpen(true)}
             className="text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 bg-brand-50 dark:bg-brand-950 hover:bg-brand-100 dark:hover:bg-brand-900 px-3 py-1.5 rounded-lg transition-colors"

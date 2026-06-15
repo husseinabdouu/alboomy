@@ -8,6 +8,7 @@ import { Avatar } from './ui'
 const NAV_LINKS = [
   { to: '/tracker', label: 'My Album', icon: '📖' },
   { to: '/friends', label: 'Friends', icon: '👥' },
+  { to: '/messages', label: 'Messages', icon: '💬' },
   { to: '/groups', label: 'Groups', icon: '🏆' },
 ]
 
@@ -102,6 +103,7 @@ export default function Nav() {
   const { pathname } = useLocation()
   const { user } = useAuth()
   const [pendingRequestCount, setPendingRequestCount] = useState(0)
+  const [unreadDMCount, setUnreadDMCount] = useState(0)
 
   const fetchPendingCount = useCallback(async () => {
     if (!user?.id) return
@@ -113,12 +115,23 @@ export default function Nav() {
     setPendingRequestCount(count || 0)
   }, [user?.id])
 
+  const fetchUnreadDMCount = useCallback(async () => {
+    if (!user?.id) return
+    const { count } = await supabase
+      .from('direct_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('recipient_id', user.id)
+      .is('read_at', null)
+    setUnreadDMCount(count || 0)
+  }, [user?.id])
+
   useEffect(() => {
     if (!user?.id) return
 
     fetchPendingCount()
+    fetchUnreadDMCount()
 
-    const channel = supabase
+    const friendChannel = supabase
       .channel(`friend-requests:${user.id}`)
       .on('postgres_changes', {
         event: '*',
@@ -130,14 +143,44 @@ export default function Nav() {
       })
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
-  }, [user?.id, fetchPendingCount])
+    const dmChannel = supabase
+      .channel(`dm-unread:${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'direct_messages',
+      }, payload => {
+        const row = payload.eventType === 'DELETE' ? payload.old : payload.new
+        if (row?.recipient_id === user.id) {
+          fetchUnreadDMCount()
+        }
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(friendChannel)
+      supabase.removeChannel(dmChannel)
+    }
+  }, [user?.id, fetchPendingCount, fetchUnreadDMCount])
+
+  useEffect(() => {
+    if (user?.id) fetchUnreadDMCount()
+  }, [pathname, user?.id, fetchUnreadDMCount])
 
   function FriendsBadge() {
     if (pendingRequestCount <= 0) return null
     return (
       <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full leading-none">
         {pendingRequestCount > 9 ? '9+' : pendingRequestCount}
+      </span>
+    )
+  }
+
+  function MessagesBadge() {
+    if (unreadDMCount <= 0) return null
+    return (
+      <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full leading-none">
+        {unreadDMCount > 9 ? '9+' : unreadDMCount}
       </span>
     )
   }
@@ -162,6 +205,7 @@ export default function Nav() {
               >
                 {l.label}
                 {l.to === '/friends' && <FriendsBadge />}
+                {l.to === '/messages' && <MessagesBadge />}
               </Link>
             ))}
           </nav>
@@ -187,6 +231,7 @@ export default function Nav() {
               <span className="relative inline-flex">
                 <span className="text-lg leading-none">{l.icon}</span>
                 {l.to === '/friends' && <FriendsBadge />}
+                {l.to === '/messages' && <MessagesBadge />}
               </span>
               <span className="text-[10px] font-medium">{l.label}</span>
             </Link>

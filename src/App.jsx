@@ -11,6 +11,8 @@ import GroupDetailPage from './pages/GroupDetail'
 import JoinGroupPage from './pages/JoinGroup'
 import ProfilePage from './pages/Profile'
 import UserProfilePage from './pages/UserProfile'
+import MessagesPage from './pages/Messages'
+import DMThreadPage from './pages/DMThread'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -47,6 +49,8 @@ export default function App() {
             {/* Private */}
             <Route path="/tracker" element={<PrivateRoute><AppLayout><TrackerPage /></AppLayout></PrivateRoute>} />
             <Route path="/friends" element={<PrivateRoute><AppLayout><FriendsPage /></AppLayout></PrivateRoute>} />
+            <Route path="/messages" element={<PrivateRoute><AppLayout><MessagesPage /></AppLayout></PrivateRoute>} />
+            <Route path="/messages/:username" element={<PrivateRoute><AppLayout><DMThreadPage /></AppLayout></PrivateRoute>} />
             <Route path="/groups" element={<PrivateRoute><AppLayout><GroupsPage /></AppLayout></PrivateRoute>} />
             <Route path="/groups/:id" element={<PrivateRoute><AppLayout><GroupDetailPage /></AppLayout></PrivateRoute>} />
             <Route path="/profile" element={<PrivateRoute><AppLayout><ProfilePage /></AppLayout></PrivateRoute>} />
