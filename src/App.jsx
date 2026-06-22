@@ -13,6 +13,7 @@ import ProfilePage from './pages/Profile'
 import UserProfilePage from './pages/UserProfile'
 import MessagesPage from './pages/Messages'
 import DMThreadPage from './pages/DMThread'
+import TradesPage from './pages/Trades'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -49,6 +50,7 @@ export default function App() {
             {/* Private */}
             <Route path="/tracker" element={<PrivateRoute><AppLayout><TrackerPage /></AppLayout></PrivateRoute>} />
             <Route path="/friends" element={<PrivateRoute><AppLayout><FriendsPage /></AppLayout></PrivateRoute>} />
+            <Route path="/trades" element={<PrivateRoute><AppLayout><TradesPage /></AppLayout></PrivateRoute>} />
             <Route path="/messages" element={<PrivateRoute><AppLayout><MessagesPage /></AppLayout></PrivateRoute>} />
             <Route path="/messages/:username" element={<PrivateRoute><AppLayout><DMThreadPage /></AppLayout></PrivateRoute>} />
             <Route path="/groups" element={<PrivateRoute><AppLayout><GroupsPage /></AppLayout></PrivateRoute>} />

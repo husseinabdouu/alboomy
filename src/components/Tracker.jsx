@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { TEAMS, SPECIAL_SECTIONS, ALL_STICKERS, TOTAL_STICKERS } from '../lib/stickers'
 import { Avatar, ProgressBar, StatCard, Toast, EmptyState, PageLoader } from './ui'
@@ -302,7 +303,9 @@ function TeamsTab({ collected }) {
 
 // ── Doubles tab ───────────────────────────────────────────────────
 function DoublesTab({ userId, editable }) {
+  const navigate = useNavigate()
   const [duplicates, setDuplicates] = useState([])
+  const [friendNeedCount, setFriendNeedCount] = useState({})
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const lq = search.toLowerCase().trim()
@@ -317,16 +320,60 @@ function DoublesTab({ userId, editable }) {
     ).slice(0, 30)
   }, [editable, lq])
 
+  const loadFriendNeedCounts = useCallback(async (dups) => {
+    if (!userId || !editable) {
+      setFriendNeedCount({})
+      return
+    }
+    const { data: friendshipData } = await supabase
+      .from('friendships')
+      .select('requester_id, addressee_id, status')
+      .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
+      .eq('status', 'accepted')
+
+    const friendIds = (friendshipData || []).map(f =>
+      f.requester_id === userId ? f.addressee_id : f.requester_id
+    )
+    if (friendIds.length === 0 || dups.length === 0) {
+      setFriendNeedCount({})
+      return
+    }
+
+    const { data: cols } = await supabase
+      .from('collections')
+      .select('user_id, sticker_id')
+      .in('user_id', friendIds)
+
+    const collectionsByFriend = new Map()
+    for (const row of cols || []) {
+      if (!collectionsByFriend.has(row.user_id)) collectionsByFriend.set(row.user_id, new Set())
+      collectionsByFriend.get(row.user_id).add(row.sticker_id)
+    }
+
+    const counts = {}
+    for (const dup of dups) {
+      let count = 0
+      for (const fid of friendIds) {
+        if (!collectionsByFriend.get(fid)?.has(dup.sticker_id)) count++
+      }
+      if (count > 0) counts[dup.sticker_id] = count
+    }
+    setFriendNeedCount(counts)
+  }, [userId, editable])
+
   const loadDuplicates = useCallback(async () => {
     if (!userId) {
       setDuplicates([])
+      setFriendNeedCount({})
       setLoading(false)
       return
     }
     const { data } = await supabase.from('duplicates').select('*').eq('user_id', userId)
-    setDuplicates(data || [])
+    const dups = data || []
+    setDuplicates(dups)
+    await loadFriendNeedCounts(dups)
     setLoading(false)
-  }, [userId])
+  }, [userId, loadFriendNeedCounts])
 
   useEffect(() => {
     setLoading(true)
@@ -417,6 +464,15 @@ function DoublesTab({ userId, editable }) {
                   <div className="text-xs text-slate-400 dark:text-slate-500">{sticker.flag} {sticker.team}</div>
                 </div>
                 <span className="badge-amber">×{dup.quantity}</span>
+                {editable && friendNeedCount[dup.sticker_id] > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => navigate('/trades')}
+                    className="badge-amber text-[10px] hover:opacity-80 transition-opacity flex-shrink-0"
+                  >
+                    🤝 {friendNeedCount[dup.sticker_id]} friend{friendNeedCount[dup.sticker_id] !== 1 ? 's' : ''} need this
+                  </button>
+                )}
                 {editable && (
                   <button
                     type="button"

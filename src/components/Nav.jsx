@@ -8,6 +8,7 @@ import { Avatar } from './ui'
 const NAV_LINKS = [
   { to: '/tracker', label: 'My Album', icon: '📖' },
   { to: '/friends', label: 'Friends', icon: '👥' },
+  { to: '/trades', label: 'Trades', icon: '🔄' },
   { to: '/messages', label: 'Messages', icon: '💬' },
   { to: '/groups', label: 'Groups', icon: '🏆' },
 ]
@@ -103,6 +104,7 @@ export default function Nav() {
   const { pathname } = useLocation()
   const { user } = useAuth()
   const [pendingRequestCount, setPendingRequestCount] = useState(0)
+  const [pendingTradeCount, setPendingTradeCount] = useState(0)
   const [unreadDMCount, setUnreadDMCount] = useState(0)
 
   const fetchPendingCount = useCallback(async () => {
@@ -113,6 +115,16 @@ export default function Nav() {
       .eq('addressee_id', user.id)
       .eq('status', 'pending')
     setPendingRequestCount(count || 0)
+  }, [user?.id])
+
+  const fetchPendingTradeCount = useCallback(async () => {
+    if (!user?.id) return
+    const { count } = await supabase
+      .from('swap_requests')
+      .select('id', { count: 'exact', head: true })
+      .eq('to_user', user.id)
+      .eq('status', 'pending')
+    setPendingTradeCount(count || 0)
   }, [user?.id])
 
   const fetchUnreadDMCount = useCallback(async () => {
@@ -129,6 +141,7 @@ export default function Nav() {
     if (!user?.id) return
 
     fetchPendingCount()
+    fetchPendingTradeCount()
     fetchUnreadDMCount()
 
     const friendChannel = supabase
@@ -140,6 +153,18 @@ export default function Nav() {
         filter: `addressee_id=eq.${user.id}`,
       }, () => {
         fetchPendingCount()
+      })
+      .subscribe()
+
+    const tradeChannel = supabase
+      .channel(`trade-requests:${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'swap_requests',
+        filter: `to_user=eq.${user.id}`,
+      }, () => {
+        fetchPendingTradeCount()
       })
       .subscribe()
 
@@ -159,9 +184,10 @@ export default function Nav() {
 
     return () => {
       supabase.removeChannel(friendChannel)
+      supabase.removeChannel(tradeChannel)
       supabase.removeChannel(dmChannel)
     }
-  }, [user?.id, fetchPendingCount, fetchUnreadDMCount])
+  }, [user?.id, fetchPendingCount, fetchPendingTradeCount, fetchUnreadDMCount])
 
   useEffect(() => {
     if (user?.id) fetchUnreadDMCount()
@@ -172,6 +198,15 @@ export default function Nav() {
     return (
       <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full leading-none">
         {pendingRequestCount > 9 ? '9+' : pendingRequestCount}
+      </span>
+    )
+  }
+
+  function TradesBadge() {
+    if (pendingTradeCount <= 0) return null
+    return (
+      <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full leading-none">
+        {pendingTradeCount > 9 ? '9+' : pendingTradeCount}
       </span>
     )
   }
@@ -205,6 +240,7 @@ export default function Nav() {
               >
                 {l.label}
                 {l.to === '/friends' && <FriendsBadge />}
+                {l.to === '/trades' && <TradesBadge />}
                 {l.to === '/messages' && <MessagesBadge />}
               </Link>
             ))}
@@ -231,6 +267,7 @@ export default function Nav() {
               <span className="relative inline-flex">
                 <span className="text-lg leading-none">{l.icon}</span>
                 {l.to === '/friends' && <FriendsBadge />}
+                {l.to === '/trades' && <TradesBadge />}
                 {l.to === '/messages' && <MessagesBadge />}
               </span>
               <span className="text-[10px] font-medium">{l.label}</span>
