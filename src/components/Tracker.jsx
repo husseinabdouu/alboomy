@@ -60,7 +60,6 @@ function OverviewTab({ collected }) {
     { name: 'Introduction', stickers: SPECIAL_SECTIONS.intro.stickers },
     { name: 'FIFA Museum', stickers: SPECIAL_SECTIONS.museum.stickers },
     { name: '48 teams', stickers: TEAMS.flatMap(t => t.stickers) },
-    { name: 'Coca-Cola exclusives', stickers: SPECIAL_SECTIONS.cc.stickers },
   ]
 
   const teamStats = TEAMS.map(t => ({
@@ -261,7 +260,6 @@ function TeamsTab({ collected }) {
     { key: 'intro', title: 'Introduction', flag: '⭐', stickers: SPECIAL_SECTIONS.intro.stickers },
     { key: 'museum', title: 'FIFA Museum', flag: '🏆', stickers: SPECIAL_SECTIONS.museum.stickers },
     ...TEAMS.map(t => ({ key: t.code, title: t.name, flag: t.flag, stickers: t.stickers })),
-    { key: 'cc', title: 'Coca-Cola', flag: '🥤', stickers: SPECIAL_SECTIONS.cc.stickers },
   ].map(s => ({ ...s, got: s.stickers.filter(st => collected.has(st.id)).length }))
 
   const sorted = [...sections].sort((a, b) => {
