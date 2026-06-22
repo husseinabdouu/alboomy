@@ -13,6 +13,31 @@ function stickerLabel(id) {
   return s ? `${s.id} · ${s.label}` : id
 }
 
+function formatRelativeTime(dateStr) {
+  const then = new Date(dateStr).getTime()
+  const secs = Math.floor((Date.now() - then) / 1000)
+  if (secs < 60) return 'just now'
+  const mins = Math.floor(secs / 60)
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days}d ago`
+  return new Date(dateStr).toLocaleDateString()
+}
+
+function HistoryStatusBadge({ status }) {
+  if (status === 'accepted') return <span className="badge-green text-xs flex-shrink-0">Accepted ✓</span>
+  if (status === 'declined') {
+    return (
+      <span className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300">
+        Declined
+      </span>
+    )
+  }
+  return <span className="badge-slate text-xs flex-shrink-0">Cancelled</span>
+}
+
 function ProposalModal({ modal, friendMatch, userId, onClose, onSent }) {
   const [saving, setSaving] = useState(false)
   const { friend, step, offeredSticker, requestedSticker } = modal
@@ -152,6 +177,7 @@ export default function TradesPage() {
   const [friendMatches, setFriendMatches] = useState([])
   const [pendingIncoming, setPendingIncoming] = useState([])
   const [pendingOutgoing, setPendingOutgoing] = useState([])
+  const [historyItems, setHistoryItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('matches')
   const [proposalModal, setProposalModal] = useState(null)
@@ -184,7 +210,7 @@ export default function TradesPage() {
 
     const friendIds = friendList.map(f => f.id)
 
-    const [myColRes, myDupRes, allColRes, allDupRes, incomingRes, outgoingRes] = await Promise.all([
+    const [myColRes, myDupRes, allColRes, allDupRes, incomingRes, outgoingRes, historyRes] = await Promise.all([
       supabase.from('collections').select('sticker_id').eq('user_id', user.id),
       supabase.from('duplicates').select('*').eq('user_id', user.id),
       friendIds.length
@@ -195,6 +221,12 @@ export default function TradesPage() {
         : Promise.resolve({ data: [] }),
       supabase.from('swap_requests').select('*').eq('to_user', user.id).eq('status', 'pending').order('created_at', { ascending: false }),
       supabase.from('swap_requests').select('*').eq('from_user', user.id).eq('status', 'pending').order('created_at', { ascending: false }),
+      supabase.from('swap_requests')
+        .select('*')
+        .or(`from_user.eq.${user.id},to_user.eq.${user.id}`)
+        .in('status', ['accepted', 'declined', 'cancelled'])
+        .order('created_at', { ascending: false })
+        .limit(50),
     ])
 
     const myCollection = new Set(myColRes.data?.map(r => r.sticker_id) || [])
@@ -235,9 +267,11 @@ export default function TradesPage() {
 
     const incoming = incomingRes.data || []
     const outgoing = outgoingRes.data || []
+    const history = historyRes.data || []
     const profileIds = [...new Set([
       ...incoming.map(r => r.from_user),
       ...outgoing.map(r => r.to_user),
+      ...history.map(r => (r.from_user === user.id ? r.to_user : r.from_user)),
     ])]
 
     let profileMap = new Map()
@@ -251,6 +285,10 @@ export default function TradesPage() {
 
     setPendingIncoming(incoming.map(r => ({ ...r, profile: profileMap.get(r.from_user) })))
     setPendingOutgoing(outgoing.map(r => ({ ...r, profile: profileMap.get(r.to_user) })))
+    setHistoryItems(history.map(r => {
+      const otherId = r.from_user === user.id ? r.to_user : r.from_user
+      return { ...r, profile: profileMap.get(otherId) }
+    }))
     setLoading(false)
   }, [user?.id])
 
@@ -280,25 +318,35 @@ export default function TradesPage() {
     showToast(`Trade proposed! ${name} will be notified.`)
   }
 
+  function addToHistory(item, status) {
+    setHistoryItems(prev => [{ ...item, status }, ...prev].slice(0, 50))
+  }
+
   async function acceptSwap(id) {
+    const req = pendingIncoming.find(r => r.id === id)
     setActionLoading(id)
     await supabase.from('swap_requests').update({ status: 'accepted' }).eq('id', id)
     setPendingIncoming(prev => prev.filter(r => r.id !== id))
+    if (req) addToHistory(req, 'accepted')
     setActionLoading('')
     showToast('Trade accepted!')
   }
 
   async function declineSwap(id) {
+    const req = pendingIncoming.find(r => r.id === id)
     setActionLoading(id)
     await supabase.from('swap_requests').update({ status: 'declined' }).eq('id', id)
     setPendingIncoming(prev => prev.filter(r => r.id !== id))
+    if (req) addToHistory(req, 'declined')
     setActionLoading('')
   }
 
   async function cancelSwap(id) {
+    const req = pendingOutgoing.find(r => r.id === id)
     setActionLoading(id)
     await supabase.from('swap_requests').update({ status: 'cancelled' }).eq('id', id)
     setPendingOutgoing(prev => prev.filter(r => r.id !== id))
+    if (req) addToHistory(req, 'cancelled')
     setActionLoading('')
   }
 
@@ -324,6 +372,7 @@ export default function TradesPage() {
         {[
           ['matches', 'Matches'],
           ['pending', `Pending (${pendingCount})`],
+          ['history', 'History'],
         ].map(([tab, label]) => (
           <button
             key={tab}
@@ -479,6 +528,55 @@ export default function TradesPage() {
                 </div>
               )}
             </div>
+          </div>
+        )
+      )}
+
+      {activeTab === 'history' && (
+        historyItems.length === 0 ? (
+          <EmptyState
+            icon="📋"
+            title="No trade history yet"
+            description="Completed, declined, and cancelled trades will appear here"
+          />
+        ) : (
+          <div className="space-y-2">
+            {historyItems.map(item => {
+              const p = item.profile
+              const offered = stickerLabel(item.offered_sticker)
+              const requested = item.requested_sticker ? stickerLabel(item.requested_sticker) : 'nothing specific'
+              const iSent = item.from_user === user.id
+              const theirName = p?.display_name || p?.username || 'Someone'
+              return (
+                <div key={item.id} className="card p-4">
+                  <div className="flex items-start gap-3">
+                    <Avatar name={theirName} src={p?.avatar_url} size="md" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                        {theirName}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        {iSent ? (
+                          <>
+                            You offered <span className="font-medium">{offered}</span> for{' '}
+                            <span className="font-medium">{requested}</span>
+                          </>
+                        ) : (
+                          <>
+                            {theirName} offered <span className="font-medium">{offered}</span> for your{' '}
+                            <span className="font-medium">{requested}</span>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                    <HistoryStatusBadge status={item.status} />
+                  </div>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 text-right mt-2">
+                    {formatRelativeTime(item.created_at)}
+                  </p>
+                </div>
+              )
+            })}
           </div>
         )
       )}
